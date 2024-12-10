@@ -5,7 +5,7 @@
         "target": "ESNext",
         "module": "ESNext",
         "declaration": true,
-        "emitDeclarationOnly": true,
+        "emitDeclarationOnly": false,
         "composite": true,
         "incremental": true,
         "skipLibCheck": true,

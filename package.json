@@ -1,12 +1,11 @@
 {
     "name": "koishi-plugin-moebot",
     "description": "Koishi Plugin MoeBot",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "main": "lib/index.js",
     "typings": "lib/index.d.ts",
     "files": [
-        "lib",
-        "dist"
+        "lib"
     ],
     "license": "MIT",
     "author": "Titvt",
