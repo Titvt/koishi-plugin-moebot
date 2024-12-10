@@ -461,11 +461,11 @@ Simple and naive
 
 export function apply(ctx: Context) {
   ctx.on("message", async (session) => {
-    if (!session.quote?.content || !session.content.includes("赢")) {
+    if (!session.content.includes("赢")) {
       return;
     }
 
-    let text = session.quote.content;
+    let text = session.quote?.content ?? session.content;
     let ratings = findBestMatch(text, QUOTES).ratings.filter(
       (rating) => rating.rating > 0
     );
