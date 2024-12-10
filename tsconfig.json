@@ -2,10 +2,10 @@
     "compilerOptions": {
         "rootDir": "src",
         "outDir": "lib",
-        "target": "ESNext",
+        "target": "ES2022",
         "module": "ESNext",
         "declaration": true,
-        "emitDeclarationOnly": false,
+        "emitDeclarationOnly": true,
         "composite": true,
         "incremental": true,
         "skipLibCheck": true,
