@@ -1,22 +1,23 @@
 {
-  "name": "koishi-plugin-moebot",
-  "description": "",
-  "version": "0.0.1",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
-  "files": [
-    "lib",
-    "dist"
-  ],
-  "license": "MIT",
-  "scripts": {},
-  "keywords": [
-    "chatbot",
-    "koishi",
-    "plugin"
-  ],
-  "devDependencies": {},
-  "peerDependencies": {
-    "koishi": "^4.18.3"
-  }
+    "name": "koishi-plugin-moebot",
+    "description": "Koishi Plugin MoeBot",
+    "version": "1.0.0",
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts",
+    "files": [
+        "lib",
+        "dist"
+    ],
+    "license": "MIT",
+    "author": "Titvt",
+    "homepage": "https://github.com/Titvt/koishi-plugin-moebot.git",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Titvt/koishi-plugin-moebot.git"
+    },
+    "dependencies": {},
+    "devDependencies": {},
+    "peerDependencies": {
+        "koishi": "^4.18.3"
+    }
 }
