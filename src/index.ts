@@ -290,7 +290,9 @@ export function apply(ctx: Context) {
             group.answer = getRandomIdiom(difficulty !== "困难");
             group.guesses = [];
             group.hint = -1;
-            return "游戏开始！直接发送四字成语即可参与游戏~";
+            return `游戏开始！本次游戏难度为${
+              difficulty !== "困难" ? "简单" : "困难"
+            }，直接发送四字成语即可参与游戏~`;
           }
         case "结束":
           if (group.guessing) {
