@@ -29,13 +29,20 @@ function parseIdiom(idiom) {
     return null;
   }
 
-  let result = { characters: idiom.split(""), lefts: [], rights: [] };
+  let result = {
+    characters: idiom.split(""),
+    lefts: [],
+    rights: [],
+    wrongs: [],
+  };
 
   for (let pinyin of pinyins.split(" ")) {
     let left = cnchar.spellInfo(pinyin).initial;
     let right = pinyin.substring(left.length);
+    let wrong = cnchar.transformTone(pinyin).spell.substring(left.length);
     result.lefts.push(left);
     result.rights.push(right);
+    result.wrongs.push(wrong);
   }
 
   return result;
@@ -55,6 +62,7 @@ function generateHtml(answer, guesses) {
       let character = guessIdiom.characters[i];
       let left = guessIdiom.lefts[i];
       let right = guessIdiom.rights[i];
+      let wrong = guessIdiom.wrongs[i];
 
       if (
         character === answerIdiom.characters[i] &&
@@ -99,9 +107,15 @@ function generateHtml(answer, guesses) {
 
         if (right === answerIdiom.rights[i]) {
           rightColor = "green";
+        } else if (wrong === answerIdiom.wrongs[i]) {
+          rightColor = "blue";
         } else {
           for (let j = 0; j < 4; j++) {
-            if (j !== i && answerIdiom.rights[j] === right) {
+            if (
+              j !== i &&
+              answerIdiom.rights[j] === right &&
+              answerIdiom.rights[j] !== guessIdiom.rights[j]
+            ) {
               rightColor = "orange";
               break;
             }
@@ -187,6 +201,9 @@ function generateHtml(answer, guesses) {
       }
       .orange {
         color: rgba(222, 117, 37, 1);
+      }
+      .blue {
+        color: rgba(59, 130, 246, 1);
       }
     </style>
   </head>
