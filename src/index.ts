@@ -10,15 +10,31 @@ export const using = ["puppeteer"];
 export interface Config {}
 export const Config: Schema<Config> = Schema.object({});
 
+const GROUPS = {};
+
+function getGroup(id) {
+  if (!GROUPS[id]) {
+    GROUPS[id] = {
+      guessing: false,
+      answer: "",
+      guesses: [],
+      hint: -1,
+    };
+  }
+
+  return GROUPS[id];
+}
+
 function readFile(file) {
   return readFileSync(resolve(__dirname, file), "utf-8");
 }
 
 const QUOTES = readFile("quotes.txt").split("\n");
 const IDIOMS = JSON.parse(readFile("idioms.json"));
+const IDIOMS_COMMON = JSON.parse(readFile("idioms_common.json"));
 
-function getRandomIdiom() {
-  let idioms = Object.keys(IDIOMS);
+function getRandomIdiom(common) {
+  let idioms = common ? Object.keys(IDIOMS_COMMON) : Object.keys(IDIOMS);
   return idioms[Math.floor(Math.random() * idioms.length)];
 }
 
@@ -224,12 +240,8 @@ ${content}
   `;
 }
 
-let guessing = false;
-let answer = "";
-let guesses = [];
-let hint = -1;
-
 export function apply(ctx: Context) {
+  ctx.guild();
   ctx.on("message", async (session) => {
     if (!session.content.includes("赢")) {
       return;
@@ -261,66 +273,78 @@ export function apply(ctx: Context) {
       }
     }
   });
-  ctx.command("猜成语 <command>").action(async ({ session }, command) => {
-    switch (command) {
-      case "开始":
-        if (guessing) {
-          await session.send("游戏正在进行中");
-          return ctx.puppeteer.render(generateHtml(answer, guesses));
-        } else {
-          guessing = true;
-          answer = getRandomIdiom();
-          guesses = [];
-          hint = -1;
-          return "游戏开始！直接发送四字成语即可参与游戏~";
-        }
-      case "结束":
-        if (guessing) {
-          guessing = false;
-          guesses.push(answer);
-          await session.send(`游戏结束！答案是“${answer}”，再接再厉哦~`);
-          return ctx.puppeteer.render(generateHtml(answer, guesses));
-        } else {
-          return "当前没有正在进行的游戏";
-        }
-      case "提示":
-        if (!guessing) {
-          return "当前没有正在进行的游戏";
-        }
+  ctx
+    .command("猜成语 <command> [difficulty]")
+    .action(async ({ session }, command, difficulty) => {
+      let group = getGroup(session.guildId);
 
-        if (hint === -1) {
-          hint = Math.floor(Math.random() * 4);
-        }
+      switch (command) {
+        case "开始":
+          if (group.guessing) {
+            await session.send("游戏正在进行中");
+            return ctx.puppeteer.render(
+              generateHtml(group.answer, group.guesses)
+            );
+          } else {
+            group.guessing = true;
+            group.answer = getRandomIdiom(difficulty !== "困难");
+            group.guesses = [];
+            group.hint = -1;
+            return "游戏开始！直接发送四字成语即可参与游戏~";
+          }
+        case "结束":
+          if (group.guessing) {
+            group.guessing = false;
+            group.guesses.push(group.answer);
+            await session.send(
+              `游戏结束！答案是“${group.answer}”，再接再厉哦~`
+            );
+            return ctx.puppeteer.render(
+              generateHtml(group.answer, group.guesses)
+            );
+          } else {
+            return "当前没有正在进行的游戏";
+          }
+        case "提示":
+          if (!group.guessing) {
+            return "当前没有正在进行的游戏";
+          }
 
-        return `答案的第${["一", "二", "三", "四"][hint]}个字是“${
-          answer[hint]
-        }”`;
-      case "规则":
-        return "在猜成语游戏中，我们的目标是根据已知信息猜出指定的成语，可以通过直接发送四字成语来参与游戏。\n当前版本的词库中有超过29000个四字成语，不在词库中的成语不会被识别也不会成为答案。\n每次猜测后，可以从图片中获取历史猜测的结果，我们需要根据结果中的字/声母/韵母的颜色提取出有效信息以便于更准确地猜出答案。\n绿色：这个字/声母/韵母是完全正确的\n橙色：这个字/声母/韵母的位置不正确，它不在当前位置和标记绿色的位置\n蓝色：这个韵母的声调不正确\n黑色：这个字/声母/韵母是完全错误的";
-      default:
-        return "无效指令";
-    }
-  });
+          if (group.hint === -1) {
+            group.hint = Math.floor(Math.random() * 4);
+          }
+
+          return `答案的第${["一", "二", "三", "四"][group.hint]}个字是“${
+            group.answer[group.hint]
+          }”`;
+        case "规则":
+          return "在猜成语游戏中，我们的目标是根据已知信息猜出随机选取的四字成语，可以通过直接发送四字成语来参与游戏。\n当前版本的简单词库中共有7000+四字成语，完整词库中共有29000+四字成语，不在完整词库中的成语不会被识别，非困难模式中只有简单词库中的成语才可能成为答案。\n每次猜测后，可以从图片中获取历史猜测的结果，我们需要根据结果中的字/声母/韵母的颜色提取出有效信息以便于更准确地猜出答案。\n绿色：这个字/声母/韵母是完全正确的\n橙色：这个字/声母/韵母的位置不正确，它不在当前位置和标记绿色的位置\n蓝色：这个韵母的声调不正确\n黑色：这个字/声母/韵母是完全错误的";
+        default:
+          return "无效指令";
+      }
+    });
   ctx.on("message", async (session) => {
+    let group = getGroup(session.guildId);
+
     if (
-      !guessing ||
+      !group.guessing ||
       session.content.length !== 4 ||
       !parseIdiom(session.content)
     ) {
       return;
     }
 
-    guesses.push(session.content);
+    group.guesses.push(session.content);
 
-    if (session.content === answer) {
-      guessing = false;
+    if (session.content === group.answer) {
+      group.guessing = false;
       await session.send(
-        `恭喜你猜对了！答案是“${answer}”，共猜了${guesses.length}次~`
+        `恭喜你猜对了！答案是“${group.answer}”，共猜了${group.guesses.length}次~`
       );
     }
 
     await session.send(
-      await ctx.puppeteer.render(generateHtml(answer, guesses))
+      await ctx.puppeteer.render(generateHtml(group.answer, group.guesses))
     );
   });
 }
