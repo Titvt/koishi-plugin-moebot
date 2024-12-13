@@ -87,7 +87,11 @@ function generateHtml(answer, guesses) {
           characterColor = "green";
         } else {
           for (let j = 0; j < 4; j++) {
-            if (j !== i && answerIdiom.characters[j] === character) {
+            if (
+              j !== i &&
+              answerIdiom.characters[j] === character &&
+              answerIdiom.characters[j] !== guessIdiom.characters[j]
+            ) {
               characterColor = "orange";
               break;
             }
@@ -98,7 +102,11 @@ function generateHtml(answer, guesses) {
           leftColor = "green";
         } else {
           for (let j = 0; j < 4; j++) {
-            if (j !== i && answerIdiom.lefts[j] === left) {
+            if (
+              j !== i &&
+              answerIdiom.lefts[j] === left &&
+              answerIdiom.lefts[j] !== guessIdiom.lefts[j]
+            ) {
               leftColor = "orange";
               break;
             }
