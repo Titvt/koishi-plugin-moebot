@@ -366,9 +366,7 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
         }次就猜到了正确答案，实在是太棒了~
 ${group.answer}：${IDIOMS[group.answer].explanation}`
       );
-    }
-
-    if (group.difficulty === "噩梦" && group.guesses.length >= 10) {
+    } else if (group.difficulty === "噩梦" && group.guesses.length >= 10) {
       group.guessing = false;
       group.guesses.push(group.answer);
       await session.send(
