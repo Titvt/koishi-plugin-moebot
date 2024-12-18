@@ -16,6 +16,7 @@ function getGroup(id) {
   if (!GROUPS[id]) {
     GROUPS[id] = {
       guessing: false,
+      difficulty: "",
       answer: "",
       guesses: [],
       hint: -1,
@@ -39,7 +40,7 @@ function getRandomIdiom(common) {
 }
 
 function parseIdiom(idiom) {
-  let pinyins = IDIOMS[idiom];
+  let pinyins = IDIOMS[idiom].pinyin;
 
   if (!pinyins) {
     return null;
@@ -286,12 +287,21 @@ export function apply(ctx: Context) {
               generateHtml(group.answer, group.guesses)
             );
           } else {
+            if (!difficulty) {
+              difficulty = "简单";
+            }
+
+            if (!["简单", "困难", "噩梦"].includes(difficulty)) {
+              return "可选难度：简单、困难、噩梦";
+            }
+
             group.guessing = true;
-            group.answer = getRandomIdiom(difficulty !== "困难");
+            group.difficulty = difficulty;
+            group.answer = getRandomIdiom(difficulty === "简单");
             group.guesses = [];
             group.hint = -1;
             return `游戏开始！本次游戏难度为${
-              difficulty !== "困难" ? "简单" : "困难"
+              difficulty === "噩梦" ? "噩梦，你只有10次猜测机会" : difficulty
             }，直接发送四字成语即可参与游戏~`;
           }
         case "结束":
@@ -299,7 +309,8 @@ export function apply(ctx: Context) {
             group.guessing = false;
             group.guesses.push(group.answer);
             await session.send(
-              `游戏结束！答案是“${group.answer}”，再接再厉哦~`
+              `很遗憾！你离正确答案就差那么一点点了，再接再厉哦~
+${group.answer}：${IDIOMS[group.answer].explanation}`
             );
             return ctx.puppeteer.render(
               generateHtml(group.answer, group.guesses)
@@ -316,11 +327,20 @@ export function apply(ctx: Context) {
             group.hint = Math.floor(Math.random() * 4);
           }
 
-          return `答案的第${["一", "二", "三", "四"][group.hint]}个字是“${
-            group.answer[group.hint]
-          }”`;
+          let hint1 =
+            group.difficulty === "噩梦"
+              ? "答案有四个字"
+              : `答案的第${["一", "二", "三", "四"][group.hint]}个字是“${
+                  group.answer[group.hint]
+                }”`;
+          let hint2 =
+            group.difficulty === "简单"
+              ? IDIOMS[group.answer].explanation
+              : "答案是一个成语";
+          return `提示一：${hint1}
+提示二：${hint2}`;
         case "规则":
-          return "在猜成语游戏中，我们的目标是根据已知信息猜出随机选取的四字成语，可以通过直接发送四字成语来参与游戏。\n当前版本的简单词库中共有7000+四字成语，完整词库中共有29000+四字成语，不在完整词库中的成语不会被识别，非困难模式中只有简单词库中的成语才可能成为答案。\n每次猜测后，可以从图片中获取历史猜测的结果，我们需要根据结果中的字/声母/韵母的颜色提取出有效信息以便于更准确地猜出答案。\n绿色：这个字/声母/韵母是完全正确的\n橙色：这个字/声母/韵母的位置不正确，它不在当前位置和标记绿色的位置\n蓝色：这个韵母的声调不正确\n黑色：这个字/声母/韵母是完全错误的";
+          return "在猜成语游戏中，我们的目标是根据已知信息猜出随机选取的四字成语，可以通过直接发送四字成语来参与游戏。\n当前版本的完整词库中共有29500+四字成语，常见词库中共有7200+四字成语，不在完整词库中的成语不会被识别，简单模式中只有常见词库中的成语才可能成为答案。\n每次猜测后，可以从图片中获取历史猜测的结果，我们需要根据结果中的字/声母/韵母的颜色提取出有效信息以便于更准确地猜出答案。\n绿色：这个字/声母/韵母是完全正确的\n橙色：这个字/声母/韵母的位置不正确，它不在当前位置和标记绿色的位置\n蓝色：这个韵母的声调不正确\n黑色：这个字/声母/韵母是完全错误的";
         default:
           return "无效指令";
       }
@@ -341,7 +361,19 @@ export function apply(ctx: Context) {
     if (session.content === group.answer) {
       group.guessing = false;
       await session.send(
-        `恭喜你猜对了！答案是“${group.answer}”，共猜了${group.guesses.length}次~`
+        `恭喜你猜对了！这么难的成语，竟然只猜了${
+          group.guesses.length
+        }次就猜到了正确答案，实在是太棒了~
+${group.answer}：${IDIOMS[group.answer].explanation}`
+      );
+    }
+
+    if (group.difficulty === "噩梦" && group.guesses.length >= 10) {
+      group.guessing = false;
+      group.guesses.push(group.answer);
+      await session.send(
+        `很遗憾！你离正确答案就差那么一点点了，再接再厉哦~
+${group.answer}：${IDIOMS[group.answer].explanation}`
       );
     }
 
