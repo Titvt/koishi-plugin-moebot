@@ -40,29 +40,27 @@ function getRandomIdiom(common) {
 }
 
 function parseIdiom(idiom) {
-  let pinyins = IDIOMS[idiom].pinyin;
-
-  if (!pinyins) {
+  if (!IDIOMS[idiom]) {
     return null;
   }
 
-  let result = {
+  let resultIdiom = {
     characters: idiom.split(""),
     lefts: [],
     rights: [],
     wrongs: [],
   };
 
-  for (let pinyin of pinyins.split(" ")) {
-    let left = cnchar.spellInfo(pinyin).initial;
-    let right = pinyin.substring(left.length);
-    let wrong = cnchar.transformTone(pinyin).spell.substring(left.length);
-    result.lefts.push(left);
-    result.rights.push(right);
-    result.wrongs.push(wrong);
+  for (let pinyin of IDIOMS[idiom].pinyin.split(" ")) {
+    let initial = cnchar.spellInfo(pinyin).initial;
+    resultIdiom.lefts.push(initial);
+    resultIdiom.rights.push(pinyin.substring(initial.length));
+    resultIdiom.wrongs.push(
+      cnchar.transformTone(pinyin).spell.substring(initial.length)
+    );
   }
 
-  return result;
+  return resultIdiom;
 }
 
 function generateHtml(answer, guesses) {
@@ -248,10 +246,10 @@ export function apply(ctx: Context) {
       return;
     }
 
-    let text = session.quote?.content ?? session.content;
-    let ratings = findBestMatch(text, QUOTES).ratings.filter(
-      (rating) => rating.rating > 0
-    );
+    let ratings = findBestMatch(
+      session.quote?.content ?? session.content,
+      QUOTES
+    ).ratings.filter((rating) => rating.rating > 0);
 
     if (!ratings.length) {
       await session.send(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
@@ -263,12 +261,12 @@ export function apply(ctx: Context) {
       0
     );
     let random = Math.random() * totalRating;
-    let current = 0;
+    let progress = 0;
 
     for (let rating of ratings) {
-      current += rating.rating;
+      progress += rating.rating;
 
-      if (current >= random) {
+      if (progress >= random) {
         await session.send(rating.target);
         return;
       }
@@ -351,6 +349,7 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
     if (
       !group.guessing ||
       session.content.length !== 4 ||
+      group.guesses.includes(session.content) ||
       !parseIdiom(session.content)
     ) {
       return;
