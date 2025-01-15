@@ -273,14 +273,26 @@ async function requestDify(apiKey, text) {
 export function apply(ctx: Context, config: Config) {
   ctx.guild();
   ctx.on("message", async (session) => {
-    if (!session.content.includes("赢")) {
-      return;
+    let content = session.quote?.content;
+
+    if (content) {
+      if (
+        !session.content.startsWith("赢") &&
+        !session.content.endsWith("赢")
+      ) {
+        return;
+      }
+    } else {
+      if (!session.content.includes("赢")) {
+        return;
+      }
+
+      content = session.content;
     }
 
-    let ratings = findBestMatch(
-      session.quote?.content ?? session.content,
-      QUOTES
-    ).ratings.filter((rating) => rating.rating > 0);
+    let ratings = findBestMatch(content, QUOTES).ratings.filter(
+      (rating) => rating.rating > 0
+    );
 
     if (!ratings.length) {
       await session.send(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
@@ -409,17 +421,35 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
       await ctx.puppeteer.render(generateHtml(group.answer, group.guesses))
     );
   });
-  ctx.command("总结 <url>").action(async (_, url) => {
+  ctx.on("message", async (session) => {
     if (!config.urlSummary) {
       return;
     }
 
-    let matches = url.match(/^https?:\/\/[^\s]+/);
+    let url = session.quote?.content;
+
+    if (url) {
+      if (
+        !session.content.startsWith("总结") &&
+        !session.content.endsWith("总结")
+      ) {
+        return;
+      }
+    } else {
+      if (!session.content.startsWith("总结 ")) {
+        return;
+      }
+
+      url = session.content;
+    }
+
+    let matches = url.match(/https?:\/\/[^\s]+/);
 
     if (!matches) {
       return;
     }
 
-    return await requestDify(config.urlSummary, matches[0]);
+    await session.send("让我看看");
+    await session.send(await requestDify(config.urlSummary, matches[0]));
   });
 }
