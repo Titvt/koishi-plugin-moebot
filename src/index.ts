@@ -7,8 +7,12 @@ import { findBestMatch } from "string-similarity";
 
 export const name = "Koishi Plugin MoeBot";
 export const using = ["puppeteer"];
-export interface Config {}
-export const Config: Schema<Config> = Schema.object({});
+export interface Config {
+  urlSummary: string;
+}
+export const Config: Schema<Config> = Schema.object({
+  urlSummary: Schema.string().description("Dify API Key of URL Summary"),
+});
 
 const GROUPS = {};
 
@@ -239,7 +243,34 @@ ${content}
   `;
 }
 
-export function apply(ctx: Context) {
+async function requestDify(apiKey, text) {
+  try {
+    return (
+      await (
+        await fetch("https://api.dify.ai/v1/chat-messages", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            query: text,
+            inputs: {},
+            response_mode: "blocking",
+            user: "user",
+            conversation_id: "",
+            files: [],
+            auto_generate_name: false,
+          }),
+        })
+      ).json()
+    ).answer;
+  } catch {
+    return "请求失败";
+  }
+}
+
+export function apply(ctx: Context, config: Config) {
   ctx.guild();
   ctx.on("message", async (session) => {
     if (!session.content.includes("赢")) {
@@ -377,5 +408,18 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
     await session.send(
       await ctx.puppeteer.render(generateHtml(group.answer, group.guesses))
     );
+  });
+  ctx.command("总结 <url>").action(async (_, url) => {
+    if (!config.urlSummary) {
+      return;
+    }
+
+    let matches = url.match(/^https?:\/\/[^\s]+/);
+
+    if (!matches) {
+      return;
+    }
+
+    return await requestDify(config.urlSummary, matches[0]);
   });
 }
