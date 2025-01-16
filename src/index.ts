@@ -264,26 +264,14 @@ async function requestDify(apiKey, text) {
       }),
     });
 
-    let reader = response.body.getReader();
-    let decoder = new TextDecoder("utf-8");
-    let regex = /data: \{.*?\}\n\n/g;
     let answer = "";
 
-    while (true) {
-      let { value, done } = await reader.read();
+    for (let chunk of (await response.text()).match(/data: \{.*?\}\n\n/g) ??
+      []) {
+      let data = JSON.parse(chunk.slice(6, -2));
 
-      if (done) {
-        break;
-      }
-
-      let chunk = decoder.decode(value);
-
-      for (let block of chunk.match(regex) ?? []) {
-        let data = JSON.parse(block.slice(6, -2));
-
-        if (["message", "agent_message"].includes(data.event)) {
-          answer += data.answer;
-        }
+      if (["message", "agent_message"].includes(data.event)) {
+        answer += data.answer;
       }
     }
 
