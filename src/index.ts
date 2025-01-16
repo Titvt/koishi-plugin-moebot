@@ -9,9 +9,11 @@ export const name = "Koishi Plugin MoeBot";
 export const using = ["puppeteer"];
 export interface Config {
   urlSummary: string;
+  chat: string;
 }
 export const Config: Schema<Config> = Schema.object({
   urlSummary: Schema.string().description("Dify API Key of URL Summary"),
+  chat: Schema.string().description("Dify API Key of Chat"),
 });
 
 const GROUPS = {};
@@ -245,26 +247,47 @@ ${content}
 
 async function requestDify(apiKey, text) {
   try {
-    return (
-      await (
-        await fetch("https://api.dify.ai/v1/chat-messages", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            query: text,
-            inputs: {},
-            response_mode: "blocking",
-            user: "user",
-            conversation_id: "",
-            files: [],
-            auto_generate_name: false,
-          }),
-        })
-      ).json()
-    ).answer;
+    let response = await fetch("https://api.dify.ai/v1/chat-messages", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: text,
+        inputs: {},
+        response_mode: "streaming",
+        user: "user",
+        conversation_id: "",
+        files: [],
+        auto_generate_name: false,
+      }),
+    });
+
+    let reader = response.body.getReader();
+    let decoder = new TextDecoder("utf-8");
+    let regex = /data: \{.*?\}\n\n/g;
+    let answer = "";
+
+    while (true) {
+      let { value, done } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      let chunk = decoder.decode(value);
+
+      for (let block of chunk.match(regex) ?? []) {
+        let data = JSON.parse(block.slice(6, -2));
+
+        if (["message", "agent_message"].includes(data.event)) {
+          answer += data.answer;
+        }
+      }
+    }
+
+    return answer;
   } catch {
     return "请求失败";
   }
@@ -451,5 +474,22 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
 
     await session.send("让我看看");
     await session.send(await requestDify(config.urlSummary, matches[0]));
+  });
+  ctx.command("聊天 <text>").action(async (_, text) => {
+    if (!config.chat) {
+      return;
+    }
+
+    text = text.trim();
+
+    if (!text.length) {
+      return;
+    }
+
+    if (text.length > 256) {
+      return "太长不看";
+    }
+
+    return await requestDify(config.chat, text);
   });
 }
