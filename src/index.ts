@@ -245,7 +245,26 @@ ${content}
   `;
 }
 
-async function requestDify(apiKey, text) {
+const DIFY_LIMIT = {};
+
+async function requestDify(userId, apiKey, text) {
+  let now = Date.now();
+
+  if (!DIFY_LIMIT[userId]) {
+    DIFY_LIMIT[userId] = { tokens: 3000, lastTime: now };
+  }
+
+  let limit = DIFY_LIMIT[userId];
+  limit.tokens = Math.min(
+    limit.tokens + Math.floor((now - limit.lastTime) / 300),
+    3000
+  );
+  limit.lastTime = now;
+
+  if (limit.tokens <= 0) {
+    return "你话真多";
+  }
+
   try {
     let response = await fetch("https://api.dify.ai/v1/chat-messages", {
       method: "POST",
@@ -272,6 +291,11 @@ async function requestDify(apiKey, text) {
 
       if (["message", "agent_message"].includes(data.event)) {
         answer += data.answer;
+      }
+
+      if (data.event === "message_end") {
+        limit.tokens -= data.metadata.usage.prompt_tokens;
+        console.log(limit.tokens);
       }
     }
 
@@ -461,9 +485,11 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
     }
 
     await session.send("让我看看");
-    await session.send(await requestDify(config.urlSummary, matches[0]));
+    await session.send(
+      await requestDify(session.userId, config.urlSummary, matches[0])
+    );
   });
-  ctx.command("聊天 <text>").action(async (_, text) => {
+  ctx.command("聊天 <text>").action(async ({ session }, text) => {
     if (!config.chat) {
       return;
     }
@@ -478,6 +504,6 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
       return "太长不看";
     }
 
-    return await requestDify(config.chat, text);
+    return await requestDify(session.userId, config.chat, text);
   });
 }
