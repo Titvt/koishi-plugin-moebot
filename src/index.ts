@@ -8,12 +8,18 @@ import { findBestMatch } from "string-similarity";
 export const name = "Koishi Plugin MoeBot";
 export const using = ["puppeteer"];
 export interface Config {
-  urlSummary: string;
-  chat: string;
+  difyApiKey: string;
+  difyTokenLimit: number;
+  difyTokenPerHour: number;
 }
 export const Config: Schema<Config> = Schema.object({
-  urlSummary: Schema.string().description("Dify API Key of URL Summary"),
-  chat: Schema.string().description("Dify API Key of Chat"),
+  difyApiKey: Schema.string().default("").description("Dify API Key"),
+  difyTokenLimit: Schema.number()
+    .default(0)
+    .description("Dify API 最大 Token 配额限制"),
+  difyTokenPerHour: Schema.number()
+    .default(0)
+    .description("Dify API 每小时恢复 Token 配额"),
 });
 
 const GROUPS = {};
@@ -247,33 +253,40 @@ ${content}
 
 const DIFY_LIMIT = {};
 
-async function requestDify(userId, apiKey, text) {
+function updateDifyLimit(config, userId) {
   let now = Date.now();
 
   if (!DIFY_LIMIT[userId]) {
-    DIFY_LIMIT[userId] = { tokens: 3000, lastTime: now };
+    DIFY_LIMIT[userId] = { tokens: config.difyTokenLimit, lastTime: now };
   }
 
   let limit = DIFY_LIMIT[userId];
   limit.tokens = Math.min(
-    limit.tokens + Math.floor((now - limit.lastTime) / 300),
-    3000
+    limit.tokens +
+      Math.floor(((now - limit.lastTime) / 3600000) * config.difyTokenPerHour),
+    config.difyTokenLimit
   );
   limit.lastTime = now;
+}
 
-  if (limit.tokens <= 0) {
-    return "你话真多";
+async function requestDify(config, userId, query) {
+  if (config.difyTokenLimit > 0 && config.difyTokenPerHour > 0) {
+    updateDifyLimit(config, userId);
+
+    if (DIFY_LIMIT[userId].tokens <= 0) {
+      return "你话真多";
+    }
   }
 
   try {
     let response = await fetch("https://api.dify.ai/v1/chat-messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${config.difyApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        query: text,
+        query: query,
         inputs: {},
         response_mode: "streaming",
         user: "user",
@@ -285,17 +298,19 @@ async function requestDify(userId, apiKey, text) {
 
     let answer = "";
 
-    for (let chunk of (await response.text()).match(/data: \{.*?\}\n\n/g) ??
-      []) {
+    for (let chunk of (await response.text()).match(/data: \{.*?\}\n\n/g)) {
       let data = JSON.parse(chunk.slice(6, -2));
 
       if (["message", "agent_message"].includes(data.event)) {
         answer += data.answer;
       }
 
-      if (data.event === "message_end") {
-        limit.tokens -= data.metadata.usage.prompt_tokens;
-        console.log(limit.tokens);
+      if (
+        config.difyTokenLimit > 0 &&
+        config.difyTokenPerHour > 0 &&
+        data.event === "message_end"
+      ) {
+        DIFY_LIMIT[userId].tokens -= data.metadata.usage.prompt_tokens;
       }
     }
 
@@ -456,54 +471,53 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
       await ctx.puppeteer.render(generateHtml(group.answer, group.guesses))
     );
   });
-  ctx.on("message", async (session) => {
-    if (!config.urlSummary) {
+  ctx.command("聊天 <query:text>").action(async ({ session }, query) => {
+    if (!config.difyApiKey) {
       return;
     }
 
-    let url = session.quote?.content;
+    query = query.trim();
+    let quote = session.quote?.content;
 
-    if (url) {
-      if (
-        !session.content.startsWith("总结") &&
-        !session.content.endsWith("总结")
-      ) {
-        return;
-      }
-    } else {
-      if (!session.content.startsWith("总结 ")) {
-        return;
-      }
-
-      url = session.content;
+    if (quote) {
+      query = `\`\`\`\n${quote}\n\`\`\`\n\n${query}`;
     }
 
-    let matches = url.match(/https?:\/\/[^\s]+/);
-
-    if (!matches) {
+    if (!query.length) {
       return;
     }
 
-    await session.send("让我看看");
-    await session.send(
-      await requestDify(session.userId, config.urlSummary, matches[0])
-    );
-  });
-  ctx.command("聊天 <text>").action(async ({ session }, text) => {
-    if (!config.chat) {
-      return;
-    }
-
-    text = text.trim();
-
-    if (!text.length) {
-      return;
-    }
-
-    if (text.length > 256) {
+    if (query.length > 256) {
       return "太长不看";
     }
+    console.log(query);
+    return await requestDify(config, session.userId, query);
+  });
+  ctx.command("聊天面板").action(async ({ session }) => {
+    if (!config.difyApiKey) {
+      return "当前没有启用聊天功能";
+    }
 
-    return await requestDify(session.userId, config.chat, text);
+    if (config.difyTokenLimit <= 0 || config.difyTokenPerHour <= 0) {
+      return "Token：∞，当前已回满 :)";
+    }
+
+    updateDifyLimit(config, session.userId);
+    let limit = DIFY_LIMIT[session.userId];
+
+    if (limit.tokens === config.difyTokenLimit) {
+      return `Token：${limit.tokens}，当前已回满 :)`;
+    }
+
+    let times =
+      (config.difyTokenLimit - limit.tokens) / config.difyTokenPerHour;
+    let hours = Math.floor(times);
+    let minutes = Math.floor((times - hours) * 60);
+    let seconds = Math.floor(((times - hours) * 60 - minutes) * 60);
+    return `Token：${limit.tokens}，距离回满还剩 ${hours
+      .toString()
+      .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
   });
 }
