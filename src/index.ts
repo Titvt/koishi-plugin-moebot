@@ -310,7 +310,9 @@ async function requestDify(config, userId, query) {
         config.difyTokenPerHour > 0 &&
         data.event === "message_end"
       ) {
-        DIFY_LIMIT[userId].tokens -= data.metadata.usage.prompt_tokens;
+        DIFY_LIMIT[userId].tokens -=
+          data.metadata.usage.prompt_tokens +
+          data.metadata.usage.completion_tokens;
       }
     }
 
@@ -487,10 +489,10 @@ ${group.answer}：${IDIOMS[group.answer].explanation}`
       return;
     }
 
-    if (query.length > 256) {
+    if (query.length > 4096) {
       return "太长不看";
     }
-    console.log(query);
+
     return await requestDify(config, session.userId, query);
   });
   ctx.command("聊天面板").action(async ({ session }) => {
