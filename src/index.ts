@@ -272,9 +272,19 @@ function updateDifyLimit(config, userId) {
 async function requestDify(config, userId, query) {
   if (config.difyTokenLimit > 0 && config.difyTokenPerHour > 0) {
     updateDifyLimit(config, userId);
+    let limit = DIFY_LIMIT[userId];
 
-    if (DIFY_LIMIT[userId].tokens <= 0) {
-      return "你话真多";
+    if (limit.tokens <= 0) {
+      let times =
+        (config.difyTokenLimit - limit.tokens) / config.difyTokenPerHour;
+      let hours = Math.floor(times);
+      let minutes = Math.floor((times - hours) * 60);
+      let seconds = Math.floor(((times - hours) * 60 - minutes) * 60);
+      return `Token：${limit.tokens}，距离回满还剩 ${hours
+        .toString()
+        .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+        .toString()
+        .padStart(2, "0")}`;
     }
   }
 
@@ -310,10 +320,14 @@ async function requestDify(config, userId, query) {
         config.difyTokenPerHour > 0 &&
         data.event === "message_end"
       ) {
-        DIFY_LIMIT[userId].tokens -=
-          data.metadata.usage.prompt_tokens +
-          data.metadata.usage.completion_tokens;
+        DIFY_LIMIT[userId].tokens -= data.metadata.usage.total_tokens;
       }
+    }
+
+    let think = answer.indexOf("</details>\n\n");
+
+    if (think !== -1) {
+      answer = answer.slice(think + 12);
     }
 
     return answer;
